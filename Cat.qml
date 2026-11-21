@@ -115,6 +115,14 @@ Item {
   // no input region, so it costs nothing when the cat is on the ground.
   readonly property int headroom: pounce ? Math.round(catSize * 1.5) : 0
 
+  // Extra speed for long trips: a cat crossing a whole monitor shouldn't
+  // plod at the same pace as one hopping a few pixels. 0 disables.
+  readonly property real distanceBoost: config.distanceBoost !== undefined
+    ? Math.max(0, Number(config.distanceBoost)) : 1.0
+  readonly property real boostCap: Number(config.boostCap) > 1 ? Number(config.boostCap) : 4.0
+  // Distance (logical px) that adds one `distanceBoost` worth of speed.
+  readonly property real boostRange: 800
+
   // ------------------------------------------------------------ bar state
 
   readonly property var bar: shell ? shell.bar : null
@@ -440,9 +448,11 @@ Item {
     } else {
       var pixelsPerSecond = decision.gait === "run" ? 150 : (decision.gait === "walk" ? 55 : 0)
       if (pixelsPerSecond > 0) {
-        var stepSize = pixelsPerSecond * speed * (tickMs / 1000)
         var delta = decision.target - catPos
-        catPos = Math.abs(delta) <= stepSize
+        var dist = Math.abs(delta)
+        var mult = Math.min(boostCap, 1 + distanceBoost * dist / boostRange)
+        var stepSize = pixelsPerSecond * speed * mult * (tickMs / 1000)
+        catPos = dist <= stepSize
           ? decision.target
           : catPos + (delta > 0 ? stepSize : -stepSize)
       }
