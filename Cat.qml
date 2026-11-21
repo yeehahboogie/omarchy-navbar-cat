@@ -126,7 +126,7 @@ Item {
 
   // "all" (default): every monitor is one long bar and the cat roams across them.
   // "focused": one cat that follows the focused output.  <name>: pinned output.
-  readonly property string monitorMode: String(config.monitor || "all")
+  readonly property string monitorMode: String(config.monitor || "focused")
   readonly property bool spanAll: monitorMode === "all"
   readonly property string wantedScreenName: {
       if (monitorMode !== "focused" && monitorMode !== "all") return monitorMode
