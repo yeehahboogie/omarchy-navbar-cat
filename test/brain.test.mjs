@@ -15,7 +15,8 @@ const REPO = join(dirname(fileURLToPath(import.meta.url)), "..");
 const source = readFileSync(join(REPO, "Brain.js"), "utf8");
 const Brain = new Function(
   `${source}\nreturn { decide, freshState, pickSpot, CHAIN, PET_MS, PET_PERK_MS,`
-    + ` AWAKE_MS, SCAMPER_MS, POUNCE_MS, POUNCE_COOLDOWN_MS, NOTIFY_MS, rhythmFor };`,
+    + ` AWAKE_MS, SCAMPER_MS, POUNCE_MS, POUNCE_COOLDOWN_MS, NOTIFY_MS, rhythmFor,`
+    + ` SPRINT_CATS, SPRINT_RAMP_CATS };`,
 )();
 
 // The middle of the bar, in cat-position terms, and the default keep-clear
@@ -228,11 +229,11 @@ test("rung 3: a scamper cannot leave the bar", () => {
   const out = decide({ workspaceEvent: { at: 9_800, dir: 1 }, x: BAR - CAT - 5 });
   assert.ok(out.target <= BAR - CAT, `target ${out.target} escaped the bar`);
 });
-
-test("rung 2: the cat runs to a pointer on the bar", () => {
-  const out = decide({ pointer: { onBar: true, pos: 900 }, x: 100 });
+const FAST = { ...input().config, fastStride: true };
+test("rung 2: the cat sprints to a far pointer on the bar", () => {
+  const out = decide({ pointer: { onBar: true, pos: 900 }, x: 100, config: FAST });
   assert.equal(out.reason, "chase");
-  assert.equal(out.gait, "run");
+  assert.equal(out.gait, "sprint");
   assert.equal(out.pose, "right");
   assert.ok(Math.abs(out.target - (900 - CAT / 2)) < 1);
 });
@@ -328,7 +329,8 @@ test("waking: a sleeping cat plays its awake frame before it moves", () => {
     }),
     woken.state,
   );
-  assert.equal(moving.gait, "run", "after waking it should get going");
+  // The distance depends on where the cat fell asleep, so it may run or sprint.
+  assert.notEqual(moving.gait, "idle", "after waking it should get going");
 });
 
 test("edges: a cat that wants to walk past the end claws at it instead", () => {
@@ -732,9 +734,9 @@ test("a bar with no room outside the middle still yields a valid spot", () => {
 test("a notification sends the cat to the end of the bar nearest the toast", () => {
   // Omarchy anchors toasts top-right, so on a horizontal bar that is the right
   // end; on a vertical bar it is the top.
-  const out = decide({ notifyAt: 9_900, x: 200 });
+  const out = decide({ notifyAt: 9_900, x: 200, config: FAST });
   assert.equal(out.reason, "notification");
-  assert.equal(out.gait, "run");
+  assert.equal(out.gait, "sprint");
   assert.equal(out.target, BAR - CAT, "should head for the right end");
 
   const vertical = decide({ axis: "v", notifyAt: 9_900, x: 500 });
@@ -852,4 +854,59 @@ test("an unknown hour behaves like an ordinary day", () => {
   assert.equal(r.sleepAfterScale, 1);
   assert.equal(r.stirEveryScale, 1);
   assert.equal(r.brisk, false);
+});
+
+test("sprint: a far target gets a sprint, a near one a run", () => {
+  const far = decide({ pointer: { onBar: true, pos: 900 }, x: 100, config: FAST });
+  assert.equal(far.gait, "sprint");
+  const near = decide({ pointer: { onBar: true, pos: 250 }, x: 100, config: FAST });
+  assert.equal(near.gait, "run");
+});
+
+test("sprint: the cat slows to a run as it closes in", () => {
+  const pointer = { onBar: true, pos: 500 };
+  assert.equal(decide({ pointer, x: 100, config: FAST }).gait, "sprint");
+  assert.equal(decide({ pointer, x: 400, config: FAST }).gait, "run");
+});
+
+test("sprint: a wandering cat never sprints", () => {
+  assert.equal(decide({ x: 0, config: FAST }).gait, "walk");
+});
+
+test("sprint: without fastStride the cat only runs", () => {
+  const far = { pointer: { onBar: true, pos: 900 }, x: 100 };
+  assert.equal(decide(far).gait, "run", "setting missing");
+  const off = { ...input().config, fastStride: false };
+  assert.equal(decide({ ...far, config: off }).gait, "run", "setting false");
+});
+
+// The cat starts at x = 0, so the chase distance equals the target position.
+// The target is pos - CAT / 2, so the pointer is placed CAT / 2 beyond it.
+function chaseAt(distance) {
+  return decide({
+    pointer: { onBar: true, pos: distance + CAT / 2 },
+    x: 0,
+    config: FAST,
+  });
+}
+
+test("sprint: speed level rises with distance and is capped at 1", () => {
+  const start = Brain.SPRINT_CATS * CAT;
+  const ramp = Brain.SPRINT_RAMP_CATS * CAT;
+
+  const near = chaseAt(start + 10);
+  assert.equal(near.gait, "sprint");
+  assert.ok(Math.abs(near.sprint - 10 / ramp) < 0.001, `got ${near.sprint}`);
+
+  const mid = chaseAt(start + ramp / 2);
+  assert.ok(Math.abs(mid.sprint - 0.5) < 0.001, `got ${mid.sprint}`);
+
+  // The bar is 1000 long, so the farthest target is 984.
+  const far = chaseAt(Math.min(BAR - CAT, start + ramp + 100));
+  assert.equal(far.sprint, 1);
+});
+
+test("sprint: at the start distance the cat is a plain run", () => {
+  const out = chaseAt(Brain.SPRINT_CATS * CAT);
+  assert.equal(out.gait, "run");
 });

@@ -39,7 +39,7 @@ Item {
   // Scaling by exactly 1:1 wants nearest-neighbour so the pixels stay hard;
   // anything else wants filtering, because fractional nearest-neighbour drops
   // and doubles rows at random.
-  readonly property bool crisp: cell === width
+  readonly property bool crisp: cell === width && rotation === 0
 
   readonly property var pattern: Frames.POSES[pose] !== undefined
     ? Frames.POSES[pose]
