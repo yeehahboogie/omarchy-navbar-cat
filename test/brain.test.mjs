@@ -229,10 +229,10 @@ test("rung 3: a scamper cannot leave the bar", () => {
   assert.ok(out.target <= BAR - CAT, `target ${out.target} escaped the bar`);
 });
 
-test("rung 2: the cat runs to a pointer on the bar", () => {
+test("rung 2: the cat sprints to a far pointer on the bar", () => {
   const out = decide({ pointer: { onBar: true, pos: 900 }, x: 100 });
   assert.equal(out.reason, "chase");
-  assert.equal(out.gait, "run");
+  assert.equal(out.gait, "sprint");
   assert.equal(out.pose, "right");
   assert.ok(Math.abs(out.target - (900 - CAT / 2)) < 1);
 });
@@ -328,7 +328,8 @@ test("waking: a sleeping cat plays its awake frame before it moves", () => {
     }),
     woken.state,
   );
-  assert.equal(moving.gait, "run", "after waking it should get going");
+  // The distance depends on where the cat fell asleep, so it may run or sprint.
+  assert.notEqual(moving.gait, "idle", "after waking it should get going");
 });
 
 test("edges: a cat that wants to walk past the end claws at it instead", () => {
@@ -734,7 +735,7 @@ test("a notification sends the cat to the end of the bar nearest the toast", () 
   // end; on a vertical bar it is the top.
   const out = decide({ notifyAt: 9_900, x: 200 });
   assert.equal(out.reason, "notification");
-  assert.equal(out.gait, "run");
+  assert.equal(out.gait, "sprint");
   assert.equal(out.target, BAR - CAT, "should head for the right end");
 
   const vertical = decide({ axis: "v", notifyAt: 9_900, x: 500 });
@@ -852,4 +853,21 @@ test("an unknown hour behaves like an ordinary day", () => {
   assert.equal(r.sleepAfterScale, 1);
   assert.equal(r.stirEveryScale, 1);
   assert.equal(r.brisk, false);
+});
+
+test("sprint: a far target gets a sprint, a near one a run", () => {
+  const far = decide({ pointer: { onBar: true, pos: 900 }, x: 100 });
+  assert.equal(far.gait, "sprint");
+  const near = decide({ pointer: { onBar: true, pos: 250 }, x: 100 });
+  assert.equal(near.gait, "run");
+});
+
+test("sprint: the cat slows to a run as it closes in", () => {
+  const pointer = { onBar: true, pos: 500 };
+  assert.equal(decide({ pointer, x: 100 }).gait, "sprint");
+  assert.equal(decide({ pointer, x: 400 }).gait, "run");
+});
+
+test("sprint: a wandering cat never sprints", () => {
+  assert.equal(decide({ x: 0 }).gait, "walk");
 });

@@ -115,14 +115,6 @@ Item {
   // no input region, so it costs nothing when the cat is on the ground.
   readonly property int headroom: pounce ? Math.round(catSize * 1.5) : 0
 
-  // Extra speed for long trips: a cat crossing a whole monitor shouldn't
-  // plod at the same pace as one hopping a few pixels. 0 disables.
-  readonly property real distanceBoost: config.distanceBoost !== undefined
-    ? Math.max(0, Number(config.distanceBoost)) : 1.0
-  readonly property real boostCap: Number(config.boostCap) > 1 ? Number(config.boostCap) : 4.0
-  // Distance (logical px) that adds one `distanceBoost` worth of speed.
-  readonly property real boostRange: 800
-
   // ------------------------------------------------------------ bar state
 
   readonly property var bar: shell ? shell.bar : null
@@ -288,6 +280,7 @@ Item {
   property string catPose: "stop"
   property bool catBob: false
   property bool catSettled: false
+  property bool catGalloping: false
   // 0 while on the bar, up to 1 at the top of a pounce.
   property real catLift: 0
   // Which way is "into the screen" from the bar's edge.
@@ -364,6 +357,41 @@ Item {
   // enough to be free. The sprite's own frames advance far slower (below).
   readonly property int tickMs: 33
 
+  // One stride is two sprite frames. At top speed one stride covers
+  // 4 cat lengths, so top speed follows the cat size.
+  readonly property int frameMs: 150
+  readonly property real strideLength: 4 * catSize
+  // The bound goes up on a horizontal bar. On a vertical bar "up" has no
+  // meaning, so it goes toward the screen interior.
+  readonly property int gallopSign: vertical ? inwardSign : -1
+  // The bound must fit in the free space on one side of the centred cat.
+  readonly property real gallopHeight: Math.max(0, Math.min(catSize / 3, (barSize - catSize) / 2))
+  // The leap takes this share of a stride. The hop takes the rest.
+  readonly property real leapShare: 0.6
+  // Largest nose-up or nose-down angle, in degrees.
+  readonly property real gallopTilt: 5
+  // Where the cat is inside the current stride, from 0 to 1.
+  readonly property real gallopPhase: (catPos % strideLength) / strideLength
+  // Position inside the current arc, from 0 to 1. The leap and the hop each
+  // have their own arc.
+  function gallopQ(phase) {
+    return phase < leapShare ? phase / leapShare : (phase - leapShare) / (1 - leapShare)
+  }
+  // The hop is 40% as high as the leap.
+  function gallopScale(phase) { return phase < leapShare ? 1 : 0.4 }
+
+  function gallopLift(phase) {
+    var q = gallopQ(phase)
+    return gallopScale(phase) * 4 * q * (1 - q)
+  }
+  // Slope of the arc: +1 rising, 0 at the top, -1 falling.
+  function gallopPitch(phase) {
+    return gallopScale(phase) * (1 - 2 * gallopQ(phase))
+  }
+  readonly property real sprintSpeed: strideLength * 1000 / (2 * frameMs)  // About 150 px/s at the default size. Tying it to sprintSpeed keeps a run
+  // slower than a sprint at every size.
+  readonly property real runSpeed: sprintSpeed * 0.7
+  
   function nudge() {
     // Something happened that the cat might care about — make sure the loop is
     // running to notice it.
@@ -382,7 +410,7 @@ Item {
     id: animator
     // oneko alternates its two frames far slower than the movement updates;
     // matching that keeps the walk cycle looking hand-drawn rather than frantic.
-    interval: 150
+    interval: root.frameMs
     repeat: true
     running: ticker.running
     onTriggered: root.animTick = (root.animTick + 1) & 0xff
@@ -446,13 +474,13 @@ Item {
       // toward it the way we ease toward a walk target would flatten it.
       catPos = decision.target
     } else {
-      var pixelsPerSecond = decision.gait === "run" ? 150 : (decision.gait === "walk" ? 55 : 0)
+      var pixelsPerSecond = decision.gait === "sprint" ? sprintSpeed
+        : decision.gait === "run" ? runSpeed
+        : decision.gait === "walk" ? 55 : 0
       if (pixelsPerSecond > 0) {
+        var stepSize = pixelsPerSecond * speed * (tickMs / 1000)
         var delta = decision.target - catPos
-        var dist = Math.abs(delta)
-        var mult = Math.min(boostCap, 1 + distanceBoost * dist / boostRange)
-        var stepSize = pixelsPerSecond * speed * mult * (tickMs / 1000)
-        catPos = dist <= stepSize
+        catPos = Math.abs(delta) <= stepSize
           ? decision.target
           : catPos + (delta > 0 ? stepSize : -stepSize)
       }
@@ -461,8 +489,9 @@ Item {
 
     catPose = decision.pose
     catBob = decision.bob
-    catLift = decision.lift
     catSettled = decision.gait === "idle"
+    catGalloping = decision.gait === "sprint"
+    catLift = decision.lift
 
     // Let a stale scamper expire so it cannot re-fire.
     if (workspaceEvent && now - workspaceEvent.at > 4000) workspaceEvent = null
@@ -605,12 +634,28 @@ Item {
         assetDir: root.assetDir
         character: root.character
         pose: root.catPose
-        animTick: root.animTick
+        // While galloping, the legs follow the bounce. Frame 1 is open legs
+        // (leap). Frame 0 is closed legs (hop).
+        animTick: root.catGalloping
+          ? (root.gallopPhase < root.leapShare ? 1 : 0)
+          : root.animTick
         fillColor: Color.bar.text
         inkColor: Color.bar.background
+        // Nose up while rising, nose down while falling. QML rotates
+        // clockwise for positive values, so a cat that faces right needs a
+        // negative angle to lift its nose.
+        rotation: root.catGalloping && !root.vertical
+          ? -(root.catPose === "right" ? 1 : -1)
+            * root.gallopPitch(root.gallopPhase) * root.gallopTilt
+          : 0
 
+        // One long leap and one short hop per stride. The phase comes from the
+        // distance covered, so the bounce matches the ground speed.
+        readonly property real gallopOffset: root.catGalloping
+          ? root.gallopLift(root.gallopPhase) * root.gallopHeight * root.gallopSign
+          : 0
         readonly property real crossPos:
-          window.stripCentre + window.liftOffset - height / 2 + bobOffset
+          window.stripCentre + window.liftOffset - height / 2 + bobOffset + gallopOffset
         readonly property real alongPos: root.catPos - window.segStart
 
         x: root.vertical ? Math.round(crossPos) : Math.round(alongPos)

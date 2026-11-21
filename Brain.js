@@ -33,6 +33,9 @@ var POUNCE_MS = 600
 var POUNCE_COOLDOWN_MS = 6000
 // How far along the bar a pounce carries the cat.
 var POUNCE_REACH = 14
+// A hurrying cat sprints when its target is more than this many cat lengths
+// away. It drops back to a run as it gets closer.
+var SPRINT_CATS = 12
 // How long the cat keeps looking after the last toast has gone. Its attention
 // otherwise lasts exactly as long as the toast is on screen, because toasts do
 // not all last the same time — a critical one stays until dismissed, and a cat
@@ -439,8 +442,10 @@ function decide(input, state) {
     state.pose = vertical
       ? (delta > 0 ? "down" : "up")
       : (delta > 0 ? "right" : "left")
+    var gait = want.gait === "run" && Math.abs(delta) > SPRINT_CATS * input.catSize
+      ? "sprint" : want.gait
     return {
-      reason: want.reason, target: target, gait: want.gait, pose: state.pose,
+      reason: want.reason, target: target, gait: gait, pose: state.pose,
       lift: 0, snap: false, bob: false, pettable: false, idle: false,
       wakeIn: 0, state: state,
     }
