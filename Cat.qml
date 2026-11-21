@@ -284,6 +284,8 @@ Item {
   property bool catBob: false
   property bool catSettled: false
   property bool catGalloping: false
+  // How hard the cat sprints, from 0 to 1.
+  property real catSprint: 0
   // 0 while on the bar, up to 1 at the top of a pounce.
   property real catLift: 0
   // Which way is "into the screen" from the bar's edge.
@@ -478,7 +480,8 @@ Item {
       // toward it the way we ease toward a walk target would flatten it.
       catPos = decision.target
     } else {
-      var pixelsPerSecond = decision.gait === "sprint" ? sprintSpeed
+      var pixelsPerSecond = decision.gait === "sprint"
+        ? runSpeed + (sprintSpeed - runSpeed) * decision.sprint
         : decision.gait === "run" ? runSpeed
         : decision.gait === "walk" ? 55 : 0
       if (pixelsPerSecond > 0) {
@@ -495,6 +498,7 @@ Item {
     catBob = decision.bob
     catSettled = decision.gait === "idle"
     catGalloping = decision.gait === "sprint"
+    catSprint = decision.gait === "sprint" ? decision.sprint : 0
     catLift = decision.lift
 
     // Let a stale scamper expire so it cannot re-fire.
@@ -650,13 +654,14 @@ Item {
         // negative angle to lift its nose.
         rotation: root.catGalloping && !root.vertical
           ? -(root.catPose === "right" ? 1 : -1)
-            * root.gallopPitch(root.gallopPhase) * root.gallopTilt
+            * root.gallopPitch(root.gallopPhase) * root.gallopTilt * root.catSprint
           : 0
 
         // One long leap and one short hop per stride. The phase comes from the
         // distance covered, so the bounce matches the ground speed.
         readonly property real gallopOffset: root.catGalloping
-          ? root.gallopLift(root.gallopPhase) * root.gallopHeight * root.gallopSign
+          ? root.gallopLift(root.gallopPhase) * root.gallopHeight
+            * root.gallopSign * root.catSprint
           : 0
         readonly property real crossPos:
           window.stripCentre + window.liftOffset - height / 2 + bobOffset + gallopOffset
