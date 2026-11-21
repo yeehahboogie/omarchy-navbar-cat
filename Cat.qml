@@ -100,6 +100,7 @@ Item {
   }
 
   readonly property bool pounce: config.pounce !== false
+
   // Fraction of the bar to keep clear when the cat picks its own spot. Omarchy
   // centres the clock, so the middle is the one place reliably occupied.
   readonly property real avoidCenter: config.avoidCenter !== undefined
@@ -129,56 +130,56 @@ Item {
   readonly property string monitorMode: String(config.monitor || "focused")
   readonly property bool spanAll: monitorMode === "all"
   readonly property string wantedScreenName: {
-      if (monitorMode !== "focused" && monitorMode !== "all") return monitorMode
-      var monitor = Hyprland.focusedMonitor
-      return monitor ? String(monitor.name || "") : ""
+    if (monitorMode !== "focused" && monitorMode !== "all") return monitorMode
+    var monitor = Hyprland.focusedMonitor
+    return monitor ? String(monitor.name || "") : ""
   }
 
   readonly property var homeScreen: {
-      var screens = Quickshell.screens
-      if (!screens || screens.length === 0) return null
-      for (var i = 0; i < screens.length; i++) {
-          if (String(screens[i].name) === root.wantedScreenName) return screens[i]
-      }
-      return screens[0]
+    var screens = Quickshell.screens
+    if (!screens || screens.length === 0) return null
+    for (var i = 0; i < screens.length; i++) {
+      if (String(screens[i].name) === root.wantedScreenName) return screens[i]
+    }
+    return screens[0]
   }
 
   // Screens that make up the bar, in walking order.
   readonly property var barScreens: {
-      if (!spanAll) return homeScreen ? [homeScreen] : []
-      var list = []
-      var screens = Quickshell.screens
-      if (!screens) return list
-      for (var i = 0; i < screens.length; i++) list.push(screens[i])
-      list.sort(function (a, b) {
-          return vertical ? a.y - b.y : a.x - b.x
-      })
-      return list
+    if (!spanAll) return homeScreen ? [homeScreen] : []
+    var list = []
+    var screens = Quickshell.screens
+    if (!screens) return list
+    for (var i = 0; i < screens.length; i++) list.push(screens[i])
+    list.sort(function (a, b) {
+      return vertical ? a.y - b.y : a.x - b.x
+    })
+    return list
   }
 
   // Where each screen's segment starts on the virtual bar, plus total length.
   readonly property var screenOffsets: {
-      var offsets = [], acc = 0
-      for (var i = 0; i < barScreens.length; i++) {
-          offsets.push(acc)
-          acc += vertical ? barScreens[i].height : barScreens[i].width
-      }
-      return offsets
+    var offsets = [], acc = 0
+    for (var i = 0; i < barScreens.length; i++) {
+      offsets.push(acc)
+      acc += vertical ? barScreens[i].height : barScreens[i].width
+    }
+    return offsets
   }
 
   readonly property real totalLength: {
-      var acc = 0
-      for (var i = 0; i < barScreens.length; i++)
-          acc += vertical ? barScreens[i].height : barScreens[i].width
-      return acc
+    var acc = 0
+    for (var i = 0; i < barScreens.length; i++)
+      acc += vertical ? barScreens[i].height : barScreens[i].width
+    return acc
   }
 
   // Which segment the cat's centre is over.
   readonly property int catIndex: {
-      var c = catPos + catSize / 2
-      for (var i = barScreens.length - 1; i >= 0; i--)
-          if (c >= screenOffsets[i]) return i
-      return 0
+    var c = catPos + catSize / 2
+    for (var i = barScreens.length - 1; i >= 0; i--)
+      if (c >= screenOffsets[i]) return i
+    return 0
   }
 
   // Kept under the old name so CatMenu.qml (which probably uses it) still works.
@@ -253,22 +254,24 @@ Item {
 
   // Returns { onBar, pos } with pos on the virtual bar, or null.
   function pointerHit() {
-      if (pointerX < 0) return null
-      var depth = barSize + chaseMargin
-      for (var i = 0; i < barScreens.length; i++) {
-          var s = barScreens[i]
-          if (pointerX < s.x || pointerX > s.x + s.width
-              || pointerY < s.y || pointerY > s.y + s.height) continue
-          var near
-          if (barPosition === "top") near = pointerY - s.y <= depth
-          else if (barPosition === "bottom") near = (s.y + s.height) - pointerY <= depth
-          else if (barPosition === "left") near = pointerX - s.x <= depth
-          else near = (s.x + s.width) - pointerX <= depth
-          if (!near) return null
-          return { onBar: true,
-                  pos: screenOffsets[i] + (vertical ? pointerY - s.y : pointerX - s.x) }
+    if (pointerX < 0) return null
+    var depth = barSize + chaseMargin
+    for (var i = 0; i < barScreens.length; i++) {
+      var s = barScreens[i]
+      if (pointerX < s.x || pointerX > s.x + s.width
+        || pointerY < s.y || pointerY > s.y + s.height) continue
+      var near
+      if (barPosition === "top") near = pointerY - s.y <= depth
+      else if (barPosition === "bottom") near = (s.y + s.height) - pointerY <= depth
+      else if (barPosition === "left") near = pointerX - s.x <= depth
+      else near = (s.x + s.width) - pointerX <= depth
+      if (!near) return null
+      return {
+        onBar: true,
+        pos: screenOffsets[i] + (vertical ? pointerY - s.y : pointerX - s.x)
       }
-      return null
+    }
+    return null
   }
 
   // ------------------------------------------------------------ cat state
