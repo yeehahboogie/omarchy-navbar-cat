@@ -442,7 +442,8 @@ function decide(input, state) {
     state.pose = vertical
       ? (delta > 0 ? "down" : "up")
       : (delta > 0 ? "right" : "left")
-    var gait = want.gait === "run" && Math.abs(delta) > SPRINT_CATS * input.catSize
+    var gait = want.gait === "run" && config.fastStride === true 
+      && Math.abs(delta) > SPRINT_CATS * input.catSize
       ? "sprint" : want.gait
     return {
       reason: want.reason, target: target, gait: gait, pose: state.pose,

@@ -101,6 +101,9 @@ Item {
 
   readonly property bool pounce: config.pounce !== false
 
+  // Sprinting and galloping are off unless the config asks  for them
+  readonly property bool fastStride: config.fastStride !== false
+
   // Fraction of the bar to keep clear when the cat picks its own spot. Omarchy
   // centres the clock, so the middle is the one place reliably occupied.
   readonly property real avoidCenter: config.avoidCenter !== undefined
@@ -456,6 +459,7 @@ Item {
         pettable: pettable,
         sleepAfter: sleepAfter,
         pounce: pounce,
+        fastStride: fastStride,
         rhythm: rhythm,
         avoidCenter: avoidCenter,
         stirEvery: stirEvery,
